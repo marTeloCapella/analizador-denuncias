@@ -75,7 +75,7 @@ if archivo_pdf is not None:
                               "actor_detallado": {"nombre": "Nombre completo", "dni": "DNI", "domicilio_real": "Domicilio real denunciado", "domicilio_electronico": "Domicilio electrónico del letrado"},
                               "demandado_detallado": {"nombre": "Nombre completo", "dni": "DNI/CUIL si figuran", "domicilio_real": "Domicilio real denunciado"},
                               "menores_filiatorios": ["Lista con Nombre completo, DNI y edad de cada hijo menor de edad por el que se reclama."],
-                              "ingresos_denunciados": "Detalle de los ingresos declarados u ofrecidos por la parte actora, y estimación/denuncia sobre el trabajo, ingresos o nivel de vida del demandado (ej: si trabaja en negro, en qué empresa, etc.).",
+                              "ingresos_denunciados": "Detalle de los ingresos declarados u ofrecidos por la parte actora, and estimación/denuncia sobre el trabajo, ingresos o nivel de vida del demandado (ej: si trabaja en negro, en qué empresa, etc.).",
                               "regimen_vida_menores": "Resumen breve de cómo es el régimen de vida y cuidado de los menores (ej: si el cuidado es exclusivo de la madre, si se denunció incumplimiento del régimen de comunicación, etc.).",
                               "liquidacion_gastos_detalle": "Detalle pormenorizado de la liquidación de gastos mensuales acompañada (ej: monto total estimativo, gastos de colegio, obra social, esparcimiento, alquiler). Si no acompaña cuadro de gastos, poner 'No se adjunta detalle'.",
                               "cuestion_especial_menor": "Mención explícita sobre si algún menor padece una enfermedad, tratamiento o si cuenta con Certificado Único de Discapacidad (CUD). Si no menciona nada, poner 'No surgen del texto'.",
@@ -95,10 +95,11 @@ if archivo_pdf is not None:
                         resultado = json.loads(response.text)
                         st.success("¡Análisis completado con éxito!")
                         if modulo_seleccionado == "🚨 Violencia Familiar (Ley 12.569)":
-                            col1, col2 = st.columns(2)
-                            with col1:
+                            with st.container(border=True):
                                 st.subheader("📝 Resumen de Hechos")
                                 st.write(resultado.get("resumen_hechos"))
+                            
+                            with st.container(border=True):
                                 st.subheader("👥 Datos de las Partes")
                                 st.markdown("**🚨 DENUNCIANTE(S):**")
                                 for d in resultado.get("denunciantes_detallados", []):
@@ -106,23 +107,27 @@ if archivo_pdf is not None:
                                 st.markdown("**👤 DENUNCIADO(S):**")
                                 for d in resultado.get("denunciados_detallados", []):
                                     st.write(f"- {d.get('nombre')} (DNI: {d.get('dni')}) | Dom: {d.get('domicilio')}")
-                                st.subheader("📂 Historial y Antecedentes")
-                                st.markdown(f"**Entre las partes:** {resultado.get('antecedentes_entre_ellos')}")
-                                st.markdown(f"**Penales:** {resultado.get('antecedentes_penales')}")
-                            with col2:
+                            
+                            with st.container(border=True):
                                 st.subheader("👶 Menores Involucrados")
                                 for m in resultado.get("menores_involucrados", []): st.write(f"- {m}")
-                                st.subheader("👮 Información Policial")
+                            
+                            with st.container(border=True):
+                                st.subheader("👮 Información Policial y Antecedentes")
                                 st.write(f"- **Intervino:** {resultado.get('comisaria_interviniente')}")
                                 st.write(f"- **Jurisdicción por Domicilio:** {resultado.get('comisaria_por_jurisdiccion')}")
+                                st.write(f"- **Causas Penales:** {resultado.get('antecedentes_penales')}")
+                                st.write(f"- **Previas entre partes:** {resultado.get('antecedentes_entre_ellos')}")
+                            
+                            with st.container(border=True):
                                 st.subheader("🛑 Cautelares y Riesgo")
                                 st.markdown("**Solicitadas:**")
                                 for med in resultado.get("medidas_solicitadas", []): st.write(f"- {med}")
                                 st.markdown("**Indicadores de Riesgo:**")
                                 for r in resultado.get("indicadores_riesgo", []): st.write(f"- {r}")
                         else:
-                            col1, col2 = st.columns(2)
-                            with col1:
+                            # VISTA PARA ALIMENTOS - CONTENEDORES AMPLIOS
+                            with st.container(border=True):
                                 st.subheader("👥 Ficha de las Partes e Hijos")
                                 act = resultado.get("actor_detallado", {})
                                 dem = resultado.get("demandado_detallado", {})
@@ -133,13 +138,18 @@ if archivo_pdf is not None:
                                 st.markdown(f"  - *Dom. Real:* {m_dom if m_dom else 'No figura'}")
                                 st.markdown("**👶 HIJOS RECLAMANTES (Filiatorios):**")
                                 for m in resultado.get("menores_filiatorios", []): st.write(f"- {m}")
+                            
+                            with st.container(border=True):
+                                st.subheader("📊 Liquidación y Cuadro de Gastos")
+                                st.write(resultado.get("liquidacion_gastos_detalle"))
+                            
+                            with st.container(border=True):
                                 st.subheader("💰 Situación Económica e Ingresos")
                                 st.write(resultado.get("ingresos_denunciados"))
                                 st.subheader("🏠 Régimen de Vida y Cuidados")
                                 st.write(resultado.get("regimen_vida_menores"))
-                            with col2:
-                                st.subheader("📊 Liquidación y Cuadro de Gastos")
-                                st.write(resultado.get("liquidacion_gastos_detalle"))
+                            
+                            with st.container(border=True):
                                 st.subheader("⚠️ Alertas Críticas de Control")
                                 st.markdown("**Salud / CUD:**")
                                 st.write(resultado.get("cuestion_especial_menor"))
@@ -147,6 +157,8 @@ if archivo_pdf is not None:
                                 st.write(resultado.get("franja_18_25_estudiantes"))
                                 st.markdown("**Expedientes Conexos / Atracción:**")
                                 st.write(resultado.get("expedientes_conexos"))
+                            
+                            with st.container(border=True):
                                 st.subheader("📝 Ofrecimiento de Prueba")
                                 pr = resultado.get("prueba_ofrecida", {})
                                 st.write(f"- **Documental/Instrumental:** {pr.get('documental_instrumental')}")
@@ -154,3 +166,4 @@ if archivo_pdf is not None:
                                 st.write(f"- **Confesional/Pericial/Informativa:** {pr.get('confesional_pericial_informativa')}")
                 except Exception as e:
                     st.error(f"Ocurrió un error en el procesamiento: {e}")
+
