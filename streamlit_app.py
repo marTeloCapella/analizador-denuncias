@@ -1,151 +1,121 @@
 import streamlit as st
-import pandas as pd
-import math
-from pathlib import Path
+import json
+from google import genai
+from google.genai import types
+from pypdf import PdfReader
 
-# Set the title and favicon that appear in the Browser's tab bar.
-st.set_page_config(
-    page_title='GDP dashboard',
-    page_icon=':earth_americas:', # This is an emoji shortcode. Could be a URL too.
-)
+st.set_page_config(page_title="Analizador de Denuncias", page_icon="⚖️", layout="wide")
 
-# -----------------------------------------------------------------------------
-# Declare some useful functions.
+with st.sidebar:
+    st.header("🔑 Configuración de Seguridad")
+    st.markdown("Para usar este analizador gratuito, ingresá tu clave API de Google Gemini.")
+    api_key_usuario = st.text_input("Pegá tu Google API Key acá:", type="password")
+    st.markdown("[👉 Conseguí tu clave gratis en un minuto haciendo clic acá](https://google.com)")
+    st.caption("🔒 Privacidad garantizada: Tu clave y los datos del expediente viajan encriptados de forma directa a Google. Este sitio no almacena registros, nombres ni documentos.")
 
-@st.cache_data
-def get_gdp_data():
-    """Grab GDP data from a CSV file.
+st.title("⚖️ Analizador de Denuncias Familiares")
+st.caption("Herramienta de optimización interna para Juzgados de Familia. Extractor automático de datos desde PDF.")
 
-    This uses caching to avoid having to read the file every time. If we were
-    reading from an HTTP endpoint instead of a file, it's a good idea to set
-    a maximum age to the cache with the TTL argument: @st.cache_data(ttl='1d')
-    """
+archivo_pdf = st.file_uploader("Subí acá el expediente o denuncia en formato PDF:", type=["pdf"])
 
-    # Instead of a CSV on disk, you could read from an HTTP endpoint here too.
-    DATA_FILENAME = Path(__file__).parent/'data/gdp_data.csv'
-    raw_gdp_df = pd.read_csv(DATA_FILENAME)
-
-    MIN_YEAR = 1960
-    MAX_YEAR = 2022
-
-    # The data above has columns like:
-    # - Country Name
-    # - Country Code
-    # - [Stuff I don't care about]
-    # - GDP for 1960
-    # - GDP for 1961
-    # - GDP for 1962
-    # - ...
-    # - GDP for 2022
-    #
-    # ...but I want this instead:
-    # - Country Name
-    # - Country Code
-    # - Year
-    # - GDP
-    #
-    # So let's pivot all those year-columns into two: Year and GDP
-    gdp_df = raw_gdp_df.melt(
-        ['Country Code'],
-        [str(x) for x in range(MIN_YEAR, MAX_YEAR + 1)],
-        'Year',
-        'GDP',
-    )
-
-    # Convert years from string to integers
-    gdp_df['Year'] = pd.to_numeric(gdp_df['Year'])
-
-    return gdp_df
-
-gdp_df = get_gdp_data()
-
-# -----------------------------------------------------------------------------
-# Draw the actual page
-
-# Set the title that appears at the top of the page.
-'''
-# :earth_americas: GDP dashboard
-
-Browse GDP data from the [World Bank Open Data](https://data.worldbank.org/) website. As you'll
-notice, the data only goes to 2022 right now, and datapoints for certain years are often missing.
-But it's otherwise a great (and did I mention _free_?) source of data.
-'''
-
-# Add some spacing
-''
-''
-
-min_value = gdp_df['Year'].min()
-max_value = gdp_df['Year'].max()
-
-from_year, to_year = st.slider(
-    'Which years are you interested in?',
-    min_value=min_value,
-    max_value=max_value,
-    value=[min_value, max_value])
-
-countries = gdp_df['Country Code'].unique()
-
-if not len(countries):
-    st.warning("Select at least one country")
-
-selected_countries = st.multiselect(
-    'Which countries would you like to view?',
-    countries,
-    ['DEU', 'FRA', 'GBR', 'BRA', 'MEX', 'JPN'])
-
-''
-''
-''
-
-# Filter the data
-filtered_gdp_df = gdp_df[
-    (gdp_df['Country Code'].isin(selected_countries))
-    & (gdp_df['Year'] <= to_year)
-    & (from_year <= gdp_df['Year'])
-]
-
-st.header('GDP over time', divider='gray')
-
-''
-
-st.line_chart(
-    filtered_gdp_df,
-    x='Year',
-    y='GDP',
-    color='Country Code',
-)
-
-''
-''
-
-
-first_year = gdp_df[gdp_df['Year'] == from_year]
-last_year = gdp_df[gdp_df['Year'] == to_year]
-
-st.header(f'GDP in {to_year}', divider='gray')
-
-''
-
-cols = st.columns(4)
-
-for i, country in enumerate(selected_countries):
-    col = cols[i % len(cols)]
-
-    with col:
-        first_gdp = first_year[first_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-        last_gdp = last_year[last_year['Country Code'] == country]['GDP'].iat[0] / 1000000000
-
-        if math.isnan(first_gdp):
-            growth = 'n/a'
-            delta_color = 'off'
+if archivo_pdf is not None:
+    st.info("Archivo cargado correctamente. Procesando páginas...")
+    
+    if st.button("Analizar y Extraer Datos"):
+        if not api_key_usuario:
+            st.error("⚠️ Falta la configuración de seguridad. Por favor, ingresá tu Google API Key en el panel de la izquierda para poder procesar el archivo.")
         else:
-            growth = f'{last_gdp / first_gdp:,.2f}x'
-            delta_color = 'normal'
+            with st.spinner("Leyendo el PDF y clasificando la información del expediente..."):
+                try:
+                    lector_pdf = PdfReader(archivo_pdf)
+                    texto_completo = ""
+                    for pagina in lector_pdf.pages:
+                        texto_extraido = pagina.extract_text()
+                        if texto_extraido:
+                            texto_completo += texto_extraido + "\n"
+                    
+                    if not texto_completo.strip():
+                        st.error("No se pudo extraer texto de este PDF. Asegurate de que no sea una imagen escaneada borrosa o un formato no compatible.")
+                    else:
+                        client = genai.Client(api_key=api_key_usuario)
+                        
+                        prompt_sistema = """
+                        Actuás como un prosecretario de un Juzgado de Familia de la Provincia de Buenos Aires, experto en el análisis preliminar de denuncias por violencia familiar (Ley 12.569).
+                        Tu tarea es analizar el texto de la denuncia provisto y extraer la información estrictamente necesaria de forma estructurada.
+                        
+                        Debes responder UNICAMENTE con un objeto JSON válido que contenga las siguientes llaves:
+                        {
+                          "resumen_hechos": "Un resumen ejecutivo muy breve, claro y cronológico de los hechos denunciados (máximo 4 líneas).",
+                          "denunciantes_detallados": [
+                             {"nombre": "Nombre completo", "dni": "DNI", "domicilio": "Domicilio real", "telefono": "Teléfono", "email": "Email", "vinculo": "Vínculo con denunciado"}
+                          ],
+                          "denunciados_detallados": [
+                             {"nombre": "Nombre completo", "dni": "DNI", "domicilio": "Domicilio real", "telefono": "Teléfono", "email": "Email"}
+                          ],
+                          "menores_involucrados": ["Nombre, edad, situación. Indicar 'Ninguno' si no hay"],
+                          "antecedentes_penales": "Mención explícita en el texto sobre antecedentes penales o causas penales del denunciado (ej: IPP en trámite). Si no figura, poner 'No surgen del texto'.",
+                          "antecedentes_entre_ellos": "Mención en el texto sobre denuncias previas o violencia anterior entre las partes. Si no figura, poner 'No surgen del texto'.",
+                          "comisaria_interviniente": "Nombre de la comisaría o destacamento que tomó la denuncia (ej: Comisaría de la Mujer y la Familia de San Isidro).",
+                          "comisaria_por_jurisdiccion": "Deducción razonable de qué comisaría de seguridad de la zona (ej: San Isidro 1ra, Martínez 2da, Tigre 1ra, etc.) corresponde al domicilio real de la persona denunciante según el partido de la Provincia de Buenos Aires en el que vive.",
+                          "medidas_solicitadas": ["Lista de las medidas que pide el denunciante o sugiere la policía."],
+                          "indicadores_riesgo": ["Factores de riesgo: presencia de armas, drogas, amenazas de muerte, perimetrales violadas."]
+                        }
+                        No agregues introducciones ni textos fuera del JSON.
+                        """
+                        
+                        response = client.models.generate_content(
+                            model='gemini-3.6-flash',
+                            contents=f"{prompt_sistema}\n\nTexto de la denuncia:\n{texto_completo}",
+                            config=types.GenerateContentConfig(
+                                response_mime_type="application/json"
+                            )
+                        )
+                        
+                        resultado = json.loads(response.text)
+                        st.success("¡Análisis completado con éxito!")
+                        
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            st.subheader("📝 Resumen de Hechos")
+                            st.write(resultado.get("resumen_hechos"))
+                            
+                            st.subheader("👥 Datos de las Partes")
+                            st.markdown("**🚨 DENUNCIANTE(S):**")
+                            for d in resultado.get("denunciantes_detallados", []):
+                                st.write(f"- **Nombre:** {d.get('nombre')}")
+                                st.write(f"  - **DNI:** {d.get('dni')} | **Vínculo:** {d.get('vinculo')}")
+                                st.write(f"  - **Domicilio:** {d.get('domicilio')}")
+                                st.write(f"  - **Teléfono:** {d.get('telefono')} | **Email:** {d.get('email')}")
+                            
+                            st.markdown("---")
+                            st.markdown("**👤 DENUNCIADO(S):**")
+                            for d in resultado.get("denunciados_detallados", []):
+                                st.write(f"- **Nombre:** {d.get('nombre')}")
+                                st.write(f"  - **DNI:** {d.get('dni')}")
+                                st.write(f"  - **Domicilio:** {d.get('domicilio')}")
+                                i_tel = d.get('telefono')
+                                i_mail = d.get('email')
+                                st.write(f"  - **Teléfono:** {i_tel if i_tel else 'No figura'} | **Email:** {i_mail if i_mail else 'No figura'}")
 
-        st.metric(
-            label=f'{country} GDP',
-            value=f'{last_gdp:,.0f}B',
-            delta=growth,
-            delta_color=delta_color
-        )
+                            st.subheader("📂 Historial y Antecedentes")
+                            st.markdown("**Entre las partes:**")
+                            st.write(resultado.get("antecedentes_entre_ellos"))
+                            st.markdown("**Causas penales / Otros antecedentes:**")
+                            st.write(resultado.get("antecedentes_penales"))
+                            
+                        with col2:
+                            st.subheader("👶 Menores Involucrados")
+                            for m in resultado.get("menores_involucrados", []): st.write(f"- {m}")
+                            
+                            st.subheader("👮 Información Policial")
+                            st.markdown(f"**Comisaría que intervino:** {resultado.get('comisaria_interviniente')}")
+                            st.markdown(f"**Comisaría correspondiente por domicilio:** {resultado.get('comisaria_por_jurisdiccion')}")
+                            
+                            st.subheader("🛑 Medidas Cautelares Solicitadas")
+                            for med in resultado.get("medidas_solicitadas", []): st.write(f"- {med}")
+                            
+                            st.subheader("⚠️ Indicadores de Riesgo")
+                            for r in resultado.get("indicadores_riesgo", []): st.write(f"- {r}")
+                            
+                except Exception as e:
+                    st.error(f"Ocurrió un error en el procesamiento: {e}")
