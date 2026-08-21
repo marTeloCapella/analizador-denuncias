@@ -13,7 +13,6 @@ with st.sidebar:
     st.markdown("[👉 Conseguí tu clave gratis en un minuto](https://google.com)")
     st.markdown("---")
     
-    # El botón selector que cambia el comportamiento de la IA según el caso
     modulo_seleccionado = st.radio(
         "Seleccioná la materia a analizar:",
         ["🚨 Violencia Familiar (Ley 12.569)", "🌾 Juicio de Alimentos"],
@@ -71,7 +70,6 @@ if archivo_pdf is not None:
                             }
                             """
                         else:
-                            # PROMPT COMPLETO DE ALIMENTOS EN BASE A TUS NUEVOS REQUISITOS
                             prompt_sistema = """
                             Actuás como un prosecretario de un Juzgado de Familia de la Pba, experto en juicios de alimentos.
                             Analizá el escrito de demanda provisto y extraé la información procesal relevante de forma estructurada.
@@ -94,7 +92,9 @@ if archivo_pdf is not None:
                         response = client.models.generate_content(
                             model='gemini-3.6-flash',
                             contents=f"{prompt_sistema}\n\nTexto del documento:\n{texto_completo}",
-                            config=types.GenerateContentConfig(response_mime_type="application/json")
+                            config=types.GenerateContentConfig(
+                                response_mime_type="application/json"
+                            )
                         )
                         
                         resultado = json.loads(response.text)
@@ -126,3 +126,5 @@ if archivo_pdf is not None:
                                 st.markdown("**Solicitadas:**")
                                 for med in resultado.get("medidas_solicitadas", []): st.write(f"- {med}")
                                 st.markdown("**Indicadores de Riesgo:**")
+                                for r in resultado.get("indicadores_riesgo", []): st.write(f"- {r}")
+                        
