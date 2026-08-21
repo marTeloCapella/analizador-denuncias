@@ -12,7 +12,6 @@ with st.sidebar:
     api_key_usuario = st.text_input("Pegá tu Google API Key acá:", type="password")
     st.markdown("[👉 Conseguí tu clave gratis en un minuto](https://google.com)")
     st.markdown("---")
-    
     modulo_seleccionado = st.radio(
         "Seleccioná la materia a analizar:",
         ["🚨 Violencia Familiar (Ley 12.569)", "🌾 Juicio de Alimentos"],
@@ -29,7 +28,6 @@ else:
     st.caption("Módulo de Alimentos - Extractor de datos filiatorios, gastos, baches de ingresos y alertas de rito.")
 
 archivo_pdf = st.file_uploader("Subí acá el escrito o expediente en formato PDF:", type=["pdf"])
-
 if archivo_pdf is not None:
     st.info("Archivo cargado correctamente. Procesando páginas...")
     
@@ -51,7 +49,6 @@ if archivo_pdf is not None:
                     else:
                         client = genai.Client(api_key=api_key_usuario)
                         
-                        # CONFIGURACIÓN DE PROMPTS SEGÚN LA MATERIA
                         if modulo_seleccionado == "🚨 Violencia Familiar (Ley 12.569)":
                             prompt_sistema = """
                             Actuás como un prosecretario de un Juzgado de Familia de la Pba, experto en violencia familiar.
@@ -92,15 +89,11 @@ if archivo_pdf is not None:
                         response = client.models.generate_content(
                             model='gemini-3.6-flash',
                             contents=f"{prompt_sistema}\n\nTexto del documento:\n{texto_completo}",
-                            config=types.GenerateContentConfig(
-                                response_mime_type="application/json"
-                            )
+                            config=types.GenerateContentConfig(response_mime_type="application/json")
                         )
                         
                         resultado = json.loads(response.text)
                         st.success("¡Análisis completado con éxito!")
-                        
-                        # RENDERIZADO VISUAL DINÁMICO SEGÚN LA MATERIA
                         if modulo_seleccionado == "🚨 Violencia Familiar (Ley 12.569)":
                             col1, col2 = st.columns(2)
                             with col1:
@@ -127,4 +120,37 @@ if archivo_pdf is not None:
                                 for med in resultado.get("medidas_solicitadas", []): st.write(f"- {med}")
                                 st.markdown("**Indicadores de Riesgo:**")
                                 for r in resultado.get("indicadores_riesgo", []): st.write(f"- {r}")
-                        
+                        else:
+                            col1, col2 = st.columns(2)
+                            with col1:
+                                st.subheader("👥 Ficha de las Partes e Hijos")
+                                act = resultado.get("actor_detallado", {})
+                                dem = resultado.get("demandado_detallado", {})
+                                st.markdown(f"**🚨 ACTOR/A:** {act.get('nombre')} | **DNI:** {act.get('dni')}")
+                                st.markdown(f"  - *Dom. Real:* {act.get('domicilio_real')} | *Elec:* {act.get('domicilio_electronico')}")
+                                st.markdown(f"**👤 DEMANDADO:** {dem.get('nombre')} | **DNI/CUIL:** {dem.get('dni')}")
+                                m_dom = dem.get('domicilio_real')
+                                st.markdown(f"  - *Dom. Real:* {m_dom if m_dom else 'No figura'}")
+                                st.markdown("**👶 HIJOS RECLAMANTES (Filiatorios):**")
+                                for m in resultado.get("menores_filiatorios", []): st.write(f"- {m}")
+                                st.subheader("💰 Situación Económica e Ingresos")
+                                st.write(resultado.get("ingresos_denunciados"))
+                                st.subheader("🏠 Régimen de Vida y Cuidados")
+                                st.write(resultado.get("regimen_vida_menores"))
+                            with col2:
+                                st.subheader("📊 Liquidación y Cuadro de Gastos")
+                                st.write(resultado.get("liquidacion_gastos_detalle"))
+                                st.subheader("⚠️ Alertas Críticas de Control")
+                                st.markdown("**Salud / CUD:**")
+                                st.write(resultado.get("cuestion_especial_menor"))
+                                st.markdown("**Hijos Mayores (18-25 años) / Estudiantes:**")
+                                st.write(resultado.get("franja_18_25_estudiantes"))
+                                st.markdown("**Expedientes Conexos / Atracción:**")
+                                st.write(resultado.get("expedientes_conexos"))
+                                st.subheader("📝 Ofrecimiento de Prueba")
+                                pr = resultado.get("prueba_ofrecida", {})
+                                st.write(f"- **Documental/Instrumental:** {pr.get('documental_instrumental')}")
+                                st.write(f"- **Testimonial:** {pr.get('testimonial')}")
+                                st.write(f"- **Confesional/Pericial/Informativa:** {pr.get('confesional_pericial_informativa')}")
+                except Exception as e:
+                    st.error(f"Ocurrió un error en el procesamiento: {e}")
